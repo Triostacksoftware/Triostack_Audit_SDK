@@ -18,6 +18,52 @@ function generateSessionId() {
   });
 }
 
+// New strategy: Use browser's built-in geolocation or fallback to server-side
+async function getUserGeo() {
+  try {
+    // Strategy 1: Try browser's built-in geolocation (more reliable)
+    if (navigator.geolocation) {
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              ip: "browser-geo",
+              city: "Browser Location",
+              region: "Browser Region",
+              country: "Browser Country",
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          },
+          (error) => {
+            console.warn("Browser geolocation failed:", error.message);
+            resolve(getFallbackGeo());
+          },
+          { timeout: 5000, enableHighAccuracy: false }
+        );
+      });
+    }
+
+    // Strategy 2: Fallback to simple IP detection without external APIs
+    return getFallbackGeo();
+  } catch (err) {
+    console.warn("Geolocation failed, using fallback:", err.message);
+    return getFallbackGeo();
+  }
+}
+
+// Fallback geolocation that doesn't require external APIs
+function getFallbackGeo() {
+  return {
+    ip: "local",
+    city: "Unknown",
+    region: "Unknown",
+    country: "Unknown",
+    latitude: null,
+    longitude: null,
+  };
+}
+
 export function createAuditClient({
   baseUrl,
   clientDbUrl,
@@ -95,18 +141,14 @@ export function createAuditClient({
   }, 0);
 
   async function track({ route, duration }) {
-    let geo = {
-      ip: "unknown",
-      city: "unknown",
-      region: "unknown",
-      country: "unknown",
-    };
+    let geo = getFallbackGeo(); // Default fallback
 
     if (includeGeo) {
       try {
         geo = await getUserGeo();
       } catch (err) {
-        onError(err);
+        console.warn("Geolocation failed, using fallback:", err.message);
+        geo = getFallbackGeo();
       }
     }
 
@@ -117,6 +159,9 @@ export function createAuditClient({
       ...geo,
       timestamp: new Date().toISOString(),
       sessionId,
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
     try {
@@ -179,13 +224,34 @@ export function createAuditClient({
     try {
       const res = await fetch(clientDbUrl, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(activity),
+        signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok)
-        throw new Error("Client DB save failed with status " + res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "Unknown error");
+        throw new Error(
+          `Client DB save failed with status ${res.status}: ${errorText}`
+        );
+      }
+
+      try {
+        const responseData = await res.json();
+        return responseData;
+      } catch (parseError) {
+        return { success: true };
+      }
     } catch (err) {
-      throw new Error(`Failed to save to client DB: ${err.message}`);
+      if (process.env.NODE_ENV === "development") {
+        throw new Error(`Failed to save to client DB: ${err.message}`);
+      } else {
+        console.warn("Client DB save failed:", err.message);
+        return { success: false, error: err.message };
+      }
     }
   }
 
@@ -224,61 +290,6 @@ function patchHistoryMethod(method, eventName) {
     window.dispatchEvent(new CustomEvent(eventName));
     return result;
   };
-}
-
-async function getUserGeo() {
-  try {
-    // Try multiple geolocation services with CORS handling
-    const services = [
-      "https://ipapi.co/json/",
-      "https://api.ipify.org?format=json",
-      "https://ip-api.com/json/",
-    ];
-
-    for (const service of services) {
-      try {
-        const res = await fetch(service, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-          },
-          // Add timeout to prevent hanging requests
-          signal: AbortSignal.timeout(5000),
-        });
-
-        if (!res.ok) continue;
-
-        const data = await res.json();
-
-        // Handle different API response formats
-        if (data.ip) {
-          return {
-            ip: data.ip || "unknown",
-            city: data.city || data.regionName || "unknown",
-            region: data.region || data.regionCode || "unknown",
-            country: data.country_name || data.country || "unknown",
-          };
-        }
-      } catch (serviceError) {
-        console.warn(
-          `Geolocation service ${service} failed:`,
-          serviceError.message
-        );
-        continue;
-      }
-    }
-
-    // If all services fail, return fallback
-    throw new Error("All geolocation services failed");
-  } catch (err) {
-    console.warn("Geolocation failed, using fallback values:", err.message);
-    return {
-      ip: "unknown",
-      city: "unknown",
-      region: "unknown",
-      country: "unknown",
-    };
-  }
 }
 
 // Default export for CommonJS compatibility
