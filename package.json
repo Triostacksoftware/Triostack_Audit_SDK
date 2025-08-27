@@ -1,7 +1,7 @@
 {
   "name": "triostack-audit-sdk",
-  "version": "1.2.0",
-  "description": "A browser-based audit tracking client for monitoring user activity and route changes",
+  "version": "2.0.0",
+  "description": "A server-side audit logging middleware for Node.js applications with Express, Fastify, and Koa support",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -14,15 +14,17 @@
   ],
   "keywords": [
     "audit",
-    "tracking",
-    "analytics",
-    "browser",
-    "route-tracking",
-    "user-activity",
-    "session-tracking",
+    "logging",
+    "middleware",
+    "express",
+    "fastify",
+    "koa",
+    "nodejs",
+    "server-side",
     "geolocation",
-    "history-api",
-    "spa-tracking"
+    "ip-tracking",
+    "request-logging",
+    "analytics"
   ],
   "author": "Triostack",
   "license": "MIT",
@@ -40,6 +42,13 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "node -c index.js"
+  },
+  "dependencies": {
+    "geoip-lite": "^1.4.9",
+    "node-fetch": "^3.3.2"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0"
   },
   "publishConfig": {
     "access": "public"

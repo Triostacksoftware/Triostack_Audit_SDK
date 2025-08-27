@@ -1,15 +1,15 @@
-# Triostack Audit Client
+# Triostack Audit SDK
 
-A browser-based audit tracking client for monitoring user activity and route changes. This library automatically tracks page navigation, route changes, and user sessions with optional geolocation data.
+A server-side audit logging middleware for Node.js applications with Express, Fastify, and Koa support. Automatically tracks API requests, user activity, and provides geolocation data.
 
 ## Features
 
-- **Automatic Route Tracking**: Monitors browser navigation and route changes
-- **Session Management**: Generates unique session IDs for user tracking
-- **Geolocation Support**: Optional IP-based geolocation data
-- **Dual Storage**: Send data to both audit API and client database
-- **Memory Safe**: Proper cleanup of event listeners and history method restoration
-- **Browser Compatibility**: Works with modern browsers and includes polyfills for older ones
+- **Automatic Request Logging**: Tracks all HTTP requests with timing and metadata
+- **Geolocation Support**: IP-based geolocation using geoip-lite
+- **Multi-Framework Support**: Express, Fastify, and Koa middleware
+- **Rich Data Collection**: Request/response sizes, status codes, user agents
+- **Flexible Configuration**: Customizable user ID headers and error handling
+- **Performance Optimized**: Non-blocking async logging with timeouts
 
 ## Installation
 
@@ -19,278 +19,233 @@ npm install triostack-audit-sdk
 
 ## Quick Start
 
-```javascript
-import { createAuditClient } from "triostack-audit-sdk";
+### Express.js
 
-const auditClient = createAuditClient({
-  baseUrl: "https://your-audit-api.com",
-  userId: "user123",
+```javascript
+import express from 'express';
+import { createAuditServer } from 'triostack-audit-sdk';
+
+const app = express();
+
+// Create audit server
+const auditServer = createAuditServer({
+  dbUrl: 'https://your-api.com/audit-logs',
+  userIdHeader: 'x-user-id', // Optional: custom header for user ID
+  enableGeo: true, // Optional: enable geolocation
+  onError: (err) => console.error('Audit error:', err) // Optional: error handler
 });
 
-// Cleanup when done (e.g., on component unmount)
-auditClient.cleanup();
-```
+// Use middleware
+app.use(auditServer.expressMiddleware());
 
-## API Reference
-
-### `createAuditClient(options: AuditClientOptions): AuditClient`
-
-Creates and initializes an audit client instance.
-
-#### Input Parameters
-
-```typescript
-interface AuditClientOptions {
-  /** The base URL for your audit API endpoint (required) */
-  baseUrl: string;
-
-  /** URL for additional client-side database storage (optional) */
-  clientDbUrl?: string;
-
-  /** Whether to include geolocation data (optional, default: true) */
-  includeGeo?: boolean;
-
-  /** User identifier for tracking (optional, default: "anonymous") */
-  userId?: string;
-
-  /** Error handler function (optional) */
-  onError?: (error: Error) => void;
-}
-```
-
-#### Return Value
-
-```typescript
-interface AuditClient {
-  /** Manually track a route change */
-  track(params: TrackParams): Promise<AuditActivity>;
-
-  /** Remove event listeners and restore original history methods */
-  cleanup(): void;
-}
-
-interface TrackParams {
-  /** The route path to track */
-  route: string;
-
-  /** Duration in seconds spent on the previous route */
-  duration: number;
-}
-
-interface AuditActivity {
-  /** User identifier */
-  userId: string;
-
-  /** Route path */
-  route: string;
-
-  /** Duration in seconds */
-  duration: number;
-
-  /** IP address */
-  ip: string;
-
-  /** City name */
-  city: string;
-
-  /** Region/state */
-  region: string;
-
-  /** Country name */
-  country: string;
-
-  /** ISO timestamp */
-  timestamp: string;
-
-  /** Unique session identifier */
-  sessionId: string;
-}
-```
-
-## Usage Examples
-
-### Basic Configuration
-
-```javascript
-import { createAuditClient } from "triostack-audit-sdk";
-
-const auditClient = createAuditClient({
-  baseUrl: "https://your-audit-api.com",
-  userId: "user123",
+// Your routes
+app.get('/api/users', (req, res) => {
+  res.json({ users: [] });
 });
 
-// Cleanup when done
-auditClient.cleanup();
+app.listen(3000);
 ```
 
-### Advanced Configuration
+### Fastify
 
 ```javascript
-import { createAuditClient } from "triostack-audit-sdk";
+import Fastify from 'fastify';
+import { fastifyAuditPlugin } from 'triostack-audit-sdk';
 
-const auditClient = createAuditClient({
-  baseUrl: "https://your-audit-api.com",
-  clientDbUrl: "https://your-client-db.com/audit",
-  includeGeo: true,
-  userId: "user123",
-  onError: (error) => {
-    console.error("Audit tracking error:", error);
-    // Send to your error reporting service
-  },
-});
-```
+const fastify = Fastify();
 
-### Manual Tracking
-
-```javascript
-// Manually track a specific route change
-const activity = await auditClient.track({
-  route: "/dashboard",
-  duration: 120, // 2 minutes
+// Register audit plugin
+await fastify.register(fastifyAuditPlugin, {
+  dbUrl: 'https://your-api.com/audit-logs',
+  userIdHeader: 'x-user-id',
+  enableGeo: true
 });
 
-console.log("Tracked activity:", activity);
+// Your routes
+fastify.get('/api/users', async (request, reply) => {
+  return { users: [] };
+});
+
+await fastify.listen({ port: 3000 });
 ```
 
-### React Integration
+### Koa
 
 ```javascript
-import { useEffect } from "react";
-import { createAuditClient } from "triostack-audit-sdk";
+import Koa from 'koa';
+import { koaAuditMiddleware } from 'triostack-audit-sdk';
 
-function App() {
-  useEffect(() => {
-    const auditClient = createAuditClient({
-      baseUrl: "https://your-audit-api.com",
-      userId: "user123",
+const app = new Koa();
+
+// Use middleware
+app.use(koaAuditMiddleware({
+  dbUrl: 'https://your-api.com/audit-logs',
+  userIdHeader: 'x-user-id',
+  enableGeo: true
+}));
+
+// Your routes
+app.use(async (ctx) => {
+  ctx.body = { users: [] };
+});
+
+app.listen(3000);
+```
+
+## Manual Tracking
+
+You can also manually track specific events:
+
+```javascript
+import { createAuditServer } from 'triostack-audit-sdk';
+
+const auditServer = createAuditServer({
+  dbUrl: 'https://your-api.com/audit-logs'
+});
+
+// Manual tracking
+app.post('/api/login', async (req, res) => {
+  try {
+    const user = await authenticateUser(req.body);
+    
+    // Track successful login
+    await auditServer.track(req, {
+      userId: user.id,
+      route: '/api/login',
+      method: 'POST',
+      statusCode: 200,
+      duration: 150,
+      event: 'user_login',
+      metadata: {
+        loginMethod: 'email',
+        success: true
+      }
     });
-
-    // Cleanup on component unmount
-    return () => {
-      auditClient.cleanup();
-    };
-  }, []);
-
-  return <div>Your app content</div>;
-}
-```
-
-### Vue.js Integration
-
-```javascript
-import { createAuditClient } from "triostack-audit-sdk";
-
-export default {
-  mounted() {
-    this.auditClient = createAuditClient({
-      baseUrl: "https://your-audit-api.com",
-      userId: "user123",
+    
+    res.json({ success: true });
+  } catch (error) {
+    // Track failed login
+    await auditServer.track(req, {
+      userId: 'anonymous',
+      route: '/api/login',
+      method: 'POST',
+      statusCode: 401,
+      duration: 50,
+      event: 'user_login_failed',
+      metadata: {
+        loginMethod: 'email',
+        success: false,
+        error: error.message
+      }
     });
-  },
-
-  beforeUnmount() {
-    if (this.auditClient) {
-      this.auditClient.cleanup();
-    }
-  },
-};
+    
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
 ```
 
-## Data Structure
+## Configuration Options
 
-The audit client automatically sends the following data structure to your endpoints:
+### createAuditServer(options)
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `dbUrl` | string | **required** | URL where audit logs will be sent |
+| `userIdHeader` | string | `'x-user-id'` | HTTP header name for user ID |
+| `enableGeo` | boolean | `true` | Enable IP-based geolocation |
+| `onError` | function | `console.error` | Error handler function |
+
+### Data Structure
+
+The SDK sends this data structure to your endpoint:
 
 ```javascript
 {
-  userId: "user123",
-  route: "/dashboard",
-  duration: 45, // seconds spent on previous route
+  sessionId: "550e8400-e29b-41d4-a716-446655440000",
+  timestamp: "2024-08-27T16:09:00.000Z",
   ip: "192.168.1.1",
   city: "New York",
   region: "NY",
   country: "United States",
-  timestamp: "2024-01-15T10:30:00.000Z",
-  sessionId: "550e8400-e29b-41d4-a716-446655440000"
+  latitude: 40.7128,
+  longitude: -74.0060,
+  userAgent: "Mozilla/5.0...",
+  userId: "user123",
+  route: "/api/users",
+  method: "GET",
+  statusCode: 200,
+  duration: 45,
+  requestSize: 1024,
+  responseSize: 2048,
+  event: "api_request", // Optional for manual tracking
+  metadata: {} // Optional for manual tracking
 }
 ```
 
-## Browser Support
+## API Endpoint Setup
 
-| Browser | Version | Support                     |
-| ------- | ------- | --------------------------- |
-| Chrome  | 76+     | ✅ Full                     |
-| Firefox | 69+     | ✅ Full                     |
-| Safari  | 13+     | ✅ Full                     |
-| Edge    | 79+     | ✅ Full                     |
-| IE      | 11      | ⚠️ Partial (with polyfills) |
+Your audit endpoint should accept POST requests with the data structure above:
 
-### Polyfills Included
-
-- `crypto.randomUUID()` - Fallback for older browsers
-- Custom events - For history method patching
+```javascript
+// Example Express endpoint
+app.post('/audit-logs', async (req, res) => {
+  try {
+    const auditData = req.body;
+    
+    // Validate required fields
+    if (!auditData.userId || !auditData.route) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+    
+    // Save to database
+    await saveToDatabase(auditData);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Audit save error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+```
 
 ## Error Handling
 
-The library includes comprehensive error handling:
-
-- **Network Failures**: Caught and reported via `onError` callback
-- **Geolocation Failures**: Fall back to "unknown" values
-- **Invalid API Responses**: Properly handled with descriptive errors
-- **Memory Leaks**: Prevented through proper cleanup
-- **Browser Compatibility**: Graceful degradation for unsupported features
-
-### Error Types
+The SDK includes comprehensive error handling:
 
 ```javascript
-// Network errors
-new Error("Failed to send to audit API: Network timeout");
-
-// API errors
-new Error("Audit API failed with status 500");
-
-// Geolocation errors
-new Error("Geo API failed");
+const auditServer = createAuditServer({
+  dbUrl: 'https://your-api.com/audit-logs',
+  onError: (error) => {
+    // Custom error handling
+    console.error('Audit failed:', error.message);
+    
+    // Send to error reporting service
+    // sendToErrorReporting(error);
+    
+    // Don't break your application
+  }
+});
 ```
 
-## Security Considerations
+## Performance Considerations
 
-- **HTTPS Only**: User data is sent via HTTPS POST requests
-- **No Sensitive Data**: No sensitive information is logged by default
-- **Secure Session IDs**: Randomly generated using crypto-safe methods
-- **Trusted Geolocation**: Data obtained from trusted third-party service (ipapi.co)
-- **No Local Storage**: No sensitive data stored locally
+- **Non-blocking**: All audit operations are asynchronous
+- **Timeouts**: 10-second timeout for network requests
+- **Error isolation**: Audit failures won't break your application
+- **Minimal overhead**: Lightweight middleware with minimal performance impact
 
-## Performance
+## Browser Support
 
-- **Lightweight**: ~5.8kB minified
-- **Non-blocking**: All operations are asynchronous
-- **Memory Efficient**: Proper cleanup prevents memory leaks
-- **Minimal Impact**: Low overhead on page performance
+This is a **server-side SDK** and does not run in browsers. For client-side tracking, consider using:
 
-## Troubleshooting
-
-### Common Issues
-
-**Q: Not tracking route changes in my SPA?**
-A: Make sure you're using the HTML5 History API (`pushState`, `replaceState`) or the library will only track `popstate` events.
-
-**Q: Geolocation data showing "unknown"?**
-A: Check your network connection and ensure `includeGeo` is set to `true`. The service may be blocked by ad blockers.
-
-**Q: Memory leaks in long-running apps?**
-A: Always call `cleanup()` when the component unmounts or the app is destroyed.
-
-**Q: Errors in console about missing crypto.randomUUID?**
-A: The library includes a polyfill, but ensure you're using a modern browser or the polyfill will be used automatically.
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- Google Analytics
+- Mixpanel
+- Amplitude
+- Custom client-side tracking
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT
