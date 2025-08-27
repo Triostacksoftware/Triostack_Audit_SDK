@@ -2,7 +2,7 @@ import express from "express";
 import { createAuditServer } from "../index.js";
 
 const app = express();
-const PORT = 3001;
+const PORT = 3003;
 
 // Create audit server instance
 const auditServer = createAuditServer({
