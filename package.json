@@ -1,6 +1,6 @@
 {
   "name": "triostack-audit-sdk",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A browser-based audit tracking client for monitoring user activity and route changes",
   "type": "module",
   "main": "index.js",

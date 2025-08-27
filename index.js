@@ -2,6 +2,9 @@
 const isBrowser =
   typeof window !== "undefined" && typeof document !== "undefined";
 
+// Global instance to prevent multiple initializations
+let globalAuditInstance = null;
+
 // Polyfill for crypto.randomUUID() for older browsers
 function generateSessionId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -33,6 +36,14 @@ export function createAuditClient({
       track: async () => {},
       cleanup: () => {},
     };
+  }
+
+  // Prevent multiple instances
+  if (globalAuditInstance) {
+    console.warn(
+      "TriostackAudit: Client already initialized, returning existing instance"
+    );
+    return globalAuditInstance;
   }
 
   let currentRoute = window.location.pathname;
@@ -129,13 +140,38 @@ export function createAuditClient({
     try {
       const res = await fetch(baseUrl + "/audit-log", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(activity),
+        // Add timeout to prevent hanging requests
+        signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok)
-        throw new Error("Audit API failed with status " + res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "Unknown error");
+        throw new Error(
+          `Audit API failed with status ${res.status}: ${errorText}`
+        );
+      }
+
+      // Try to parse response for better error handling
+      try {
+        const responseData = await res.json();
+        return responseData;
+      } catch (parseError) {
+        // Response might not be JSON, which is okay
+        return { success: true };
+      }
     } catch (err) {
-      throw new Error(`Failed to send to audit API: ${err.message}`);
+      // Don't throw errors in production, just log them
+      if (process.env.NODE_ENV === "development") {
+        throw new Error(`Failed to send to audit API: ${err.message}`);
+      } else {
+        console.warn("Audit API call failed:", err.message);
+        return { success: false, error: err.message };
+      }
     }
   }
 
@@ -167,9 +203,13 @@ export function createAuditClient({
     if (originalHistoryMethods.replaceState) {
       history.replaceState = originalHistoryMethods.replaceState;
     }
+
+    // Clear global instance
+    globalAuditInstance = null;
   }
 
-  return { track, cleanup };
+  globalAuditInstance = { track, cleanup };
+  return globalAuditInstance;
 }
 
 function patchHistoryMethod(method, eventName) {
@@ -188,16 +228,50 @@ function patchHistoryMethod(method, eventName) {
 
 async function getUserGeo() {
   try {
-    const res = await fetch("https://ipapi.co/json/");
-    if (!res.ok) throw new Error("Geo API failed");
-    const data = await res.json();
-    return {
-      ip: data.ip || "unknown",
-      city: data.city || "unknown",
-      region: data.region || "unknown",
-      country: data.country_name || "unknown",
-    };
+    // Try multiple geolocation services with CORS handling
+    const services = [
+      "https://ipapi.co/json/",
+      "https://api.ipify.org?format=json",
+      "https://ip-api.com/json/",
+    ];
+
+    for (const service of services) {
+      try {
+        const res = await fetch(service, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          // Add timeout to prevent hanging requests
+          signal: AbortSignal.timeout(5000),
+        });
+
+        if (!res.ok) continue;
+
+        const data = await res.json();
+
+        // Handle different API response formats
+        if (data.ip) {
+          return {
+            ip: data.ip || "unknown",
+            city: data.city || data.regionName || "unknown",
+            region: data.region || data.regionCode || "unknown",
+            country: data.country_name || data.country || "unknown",
+          };
+        }
+      } catch (serviceError) {
+        console.warn(
+          `Geolocation service ${service} failed:`,
+          serviceError.message
+        );
+        continue;
+      }
+    }
+
+    // If all services fail, return fallback
+    throw new Error("All geolocation services failed");
   } catch (err) {
+    console.warn("Geolocation failed, using fallback values:", err.message);
     return {
       ip: "unknown",
       city: "unknown",
