@@ -34,9 +34,9 @@
     "url": "https://github.com/triostack/audit-client.git"
   },
   "bugs": {
-    "url": "https://github.com/triostack/audit-client/issues"
+    "url": "https://github.com/YOUR_USERNAME/triostack-audit-sdk/issues"
   },
-  "homepage": "https://github.com/triostack/audit-client#readme",
+  "homepage": "https://github.com/YOUR_USERNAME/triostack-audit-sdk#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "node -c index.js"
