@@ -18,42 +18,35 @@ function generateSessionId() {
   });
 }
 
-// New strategy: Use browser's built-in geolocation or fallback to server-side
-async function getUserGeo() {
+// Simple local storage for audit data
+function getLocalAuditData() {
   try {
-    // Strategy 1: Try browser's built-in geolocation (more reliable)
-    if (navigator.geolocation) {
-      return new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              ip: "browser-geo",
-              city: "Browser Location",
-              region: "Browser Region",
-              country: "Browser Country",
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          },
-          (error) => {
-            console.warn("Browser geolocation failed:", error.message);
-            resolve(getFallbackGeo());
-          },
-          { timeout: 5000, enableHighAccuracy: false }
-        );
-      });
-    }
-
-    // Strategy 2: Fallback to simple IP detection without external APIs
-    return getFallbackGeo();
-  } catch (err) {
-    console.warn("Geolocation failed, using fallback:", err.message);
-    return getFallbackGeo();
+    const data = localStorage.getItem("triostack-audit-data");
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.warn("Failed to read local audit data:", error);
+    return [];
   }
 }
 
-// Fallback geolocation that doesn't require external APIs
-function getFallbackGeo() {
+function saveLocalAuditData(data) {
+  try {
+    const existing = getLocalAuditData();
+    const updated = [...existing, data];
+    // Keep only last 100 entries to prevent storage bloat
+    if (updated.length > 100) {
+      updated.splice(0, updated.length - 100);
+    }
+    localStorage.setItem("triostack-audit-data", JSON.stringify(updated));
+    return true;
+  } catch (error) {
+    console.warn("Failed to save local audit data:", error);
+    return false;
+  }
+}
+
+// Get basic user info without external APIs
+function getUserInfo() {
   return {
     ip: "local",
     city: "Unknown",
@@ -61,19 +54,23 @@ function getFallbackGeo() {
     country: "Unknown",
     latitude: null,
     longitude: null,
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    screenResolution: `${screen.width}x${screen.height}`,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
   };
 }
 
 export function createAuditClient({
   baseUrl,
   clientDbUrl,
-  includeGeo = true,
+  includeGeo = false, // Default to false to avoid issues
   userId = "anonymous",
   onError = (err) => console.error("TriostackAudit Error:", err),
+  enableLocalStorage = true, // New option for local storage
+  enableServerSync = false, // New option to control server sync
 }) {
-  if (!baseUrl) throw new Error("baseUrl is required");
-
-  // Only proceed if we're in a browser environment
   if (!isBrowser) {
     console.warn(
       "TriostackAudit: Not in browser environment, audit tracking disabled"
@@ -81,6 +78,8 @@ export function createAuditClient({
     return {
       track: async () => {},
       cleanup: () => {},
+      getLocalData: () => [],
+      clearLocalData: () => {},
     };
   }
 
@@ -141,36 +140,35 @@ export function createAuditClient({
   }, 0);
 
   async function track({ route, duration }) {
-    let geo = getFallbackGeo(); // Default fallback
-
-    if (includeGeo) {
-      try {
-        geo = await getUserGeo();
-      } catch (err) {
-        console.warn("Geolocation failed, using fallback:", err.message);
-        geo = getFallbackGeo();
-      }
-    }
+    const userInfo = getUserInfo();
 
     const activity = {
       userId,
       route,
       duration,
-      ...geo,
+      ...userInfo,
       timestamp: new Date().toISOString(),
       sessionId,
-      userAgent: navigator.userAgent,
-      language: navigator.language,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
 
-    try {
-      await sendToAuditAPI(activity);
-    } catch (err) {
-      onError(err);
+    // Always save locally if enabled
+    if (enableLocalStorage) {
+      const saved = saveLocalAuditData(activity);
+      if (saved) {
+        console.log("Audit data saved locally:", activity);
+      }
     }
 
-    if (clientDbUrl) {
+    // Only try server sync if enabled and baseUrl is provided
+    if (enableServerSync && baseUrl) {
+      try {
+        await sendToAuditAPI(activity);
+      } catch (err) {
+        onError(err);
+      }
+    }
+
+    if (clientDbUrl && enableServerSync) {
       try {
         await saveToClientDB(activity, clientDbUrl);
       } catch (err) {
@@ -182,6 +180,11 @@ export function createAuditClient({
   }
 
   async function sendToAuditAPI(activity) {
+    if (!baseUrl) {
+      console.warn("No baseUrl provided, skipping server sync");
+      return;
+    }
+
     try {
       const res = await fetch(baseUrl + "/audit-log", {
         method: "POST",
@@ -190,7 +193,6 @@ export function createAuditClient({
           Accept: "application/json",
         },
         body: JSON.stringify(activity),
-        // Add timeout to prevent hanging requests
         signal: AbortSignal.timeout(10000),
       });
 
@@ -255,6 +257,20 @@ export function createAuditClient({
     }
   }
 
+  // New functions for local data management
+  function getLocalData() {
+    return getLocalAuditData();
+  }
+
+  function clearLocalData() {
+    try {
+      localStorage.removeItem("triostack-audit-data");
+      console.log("Local audit data cleared");
+    } catch (error) {
+      console.warn("Failed to clear local audit data:", error);
+    }
+  }
+
   // Cleanup function to remove event listeners and restore history methods
   function cleanup() {
     eventListeners.forEach(({ element, event, listener }) => {
@@ -274,7 +290,12 @@ export function createAuditClient({
     globalAuditInstance = null;
   }
 
-  globalAuditInstance = { track, cleanup };
+  globalAuditInstance = {
+    track,
+    cleanup,
+    getLocalData,
+    clearLocalData,
+  };
   return globalAuditInstance;
 }
 
