@@ -43,45 +43,45 @@ AUDIT_LOG_LEVEL=debug
 
 ```javascript
 // app/api/audit-logs/route.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
-  userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
-  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+  userIdHeader: process.env.AUDIT_USER_ID_HEADER || "x-user-id",
+  enableGeo: process.env.AUDIT_ENABLE_GEO === "true",
   onError: (err) => {
     // Production error handling
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('Audit error:', err.message);
+    if (process.env.NODE_ENV === "production") {
+      console.warn("Audit error:", err.message);
       // Send to error reporting service (e.g., Sentry)
       // captureException(err);
     } else {
-      console.error('Audit error:', err);
+      console.error("Audit error:", err);
     }
-  }
+  },
 });
 
 export async function POST(request) {
   try {
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.userId || !data.route) {
       return Response.json(
-        { success: false, message: 'Missing required fields' },
+        { success: false, message: "Missing required fields" },
         { status: 400 }
       );
     }
-    
+
     // Track audit event
     await auditServer.track(request, data);
-    
+
     return Response.json({ success: true });
   } catch (error) {
     // Graceful error handling - don't break the application
-    console.warn('Audit API error:', error.message);
+    console.warn("Audit API error:", error.message);
     return Response.json(
-      { success: false, message: 'Audit tracking failed' },
+      { success: false, message: "Audit tracking failed" },
       { status: 500 }
     );
   }
@@ -94,11 +94,11 @@ export async function POST(request) {
 // app/api/audit/health/route.js
 export async function GET() {
   return Response.json({
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: "2.0.0",
     environment: process.env.NODE_ENV,
-    auditEnabled: !!process.env.AUDIT_DB_URL
+    auditEnabled: !!process.env.AUDIT_DB_URL,
   });
 }
 ```
@@ -107,39 +107,40 @@ export async function GET() {
 
 ```javascript
 // middleware.js
-import { NextResponse } from 'next/server';
-import { createAuditServer } from 'triostack-audit-sdk';
+import { NextResponse } from "next/server";
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
-  userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
-  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+  userIdHeader: process.env.AUDIT_USER_ID_HEADER || "x-user-id",
+  enableGeo: process.env.AUDIT_ENABLE_GEO === "true",
   onError: (err) => {
     // Silent error handling for production
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('Audit middleware error:', err.message);
+    if (process.env.NODE_ENV === "production") {
+      console.warn("Audit middleware error:", err.message);
     }
-  }
+  },
 });
 
 export function middleware(request) {
   // Only track API routes in production
-  if (process.env.NODE_ENV === 'production' && request.nextUrl.pathname.startsWith('/api/')) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    request.nextUrl.pathname.startsWith("/api/")
+  ) {
     const startTime = Date.now();
-    
+
     const response = NextResponse.next();
-    response.headers.set('x-audit-start-time', startTime.toString());
-    
+    response.headers.set("x-audit-start-time", startTime.toString());
+
     return response;
   }
-  
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    '/api/:path*',
-  ],
+  matcher: ["/api/:path*"],
 };
 ```
 
@@ -149,41 +150,41 @@ export const config = {
 
 ```javascript
 // lib/auditDatabase.js
-import { MongoClient } from 'mongodb';
+import { MongoClient } from "mongodb";
 
 const client = new MongoClient(process.env.MONGODB_URI);
 
 export async function saveAuditToMongoDB(auditData) {
   try {
     await client.connect();
-    const db = client.db('audit');
-    const collection = db.collection('audit_logs');
-    
+    const db = client.db("audit");
+    const collection = db.collection("audit_logs");
+
     // Add timestamp and index
     const document = {
       ...auditData,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
+
     await collection.insertOne(document);
     return { success: true };
   } catch (error) {
-    console.error('MongoDB save error:', error);
+    console.error("MongoDB save error:", error);
     return { success: false, error: error.message };
   }
 }
 
 // app/api/audit-logs/route.js
-import { saveAuditToMongoDB } from '@/lib/auditDatabase';
+import { saveAuditToMongoDB } from "@/lib/auditDatabase";
 
 export async function POST(request) {
   try {
     const data = await request.json();
-    
+
     // Save to MongoDB
     const result = await saveAuditToMongoDB(data);
-    
+
     if (result.success) {
       return Response.json({ success: true });
     } else {
@@ -205,7 +206,7 @@ export async function POST(request) {
 
 ```javascript
 // lib/auditDatabase.js
-import { Pool } from 'pg';
+import { Pool } from "pg";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -213,7 +214,7 @@ const pool = new Pool({
 
 export async function saveAuditToPostgreSQL(auditData) {
   const client = await pool.connect();
-  
+
   try {
     const query = `
       INSERT INTO audit_logs (
@@ -223,7 +224,7 @@ export async function saveAuditToPostgreSQL(auditData) {
         event, metadata
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
     `;
-    
+
     const values = [
       auditData.sessionId,
       auditData.timestamp,
@@ -242,13 +243,13 @@ export async function saveAuditToPostgreSQL(auditData) {
       auditData.requestSize,
       auditData.responseSize,
       auditData.event || null,
-      JSON.stringify(auditData.metadata || {})
+      JSON.stringify(auditData.metadata || {}),
     ];
-    
+
     await client.query(query, values);
     return { success: true };
   } catch (error) {
-    console.error('PostgreSQL save error:', error);
+    console.error("PostgreSQL save error:", error);
     return { success: false, error: error.message };
   } finally {
     client.release();
@@ -263,22 +264,22 @@ export async function saveAuditToPostgreSQL(auditData) {
 export async function sendToExternalAPI(auditData) {
   try {
     const response = await fetch(process.env.AUDIT_DB_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.AUDIT_API_KEY}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.AUDIT_API_KEY}`,
       },
       body: JSON.stringify(auditData),
       signal: AbortSignal.timeout(10000), // 10 second timeout
     });
-    
+
     if (!response.ok) {
       throw new Error(`API responded with status: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
-    console.error('External API error:', error);
+    console.error("External API error:", error);
     return { success: false, error: error.message };
   }
 }
@@ -293,20 +294,20 @@ export async function sendToExternalAPI(auditData) {
 export async function POST(request) {
   try {
     const data = await request.json();
-    
+
     // Validate quickly
     if (!data.userId || !data.route) {
       return Response.json(
-        { success: false, message: 'Missing required fields' },
+        { success: false, message: "Missing required fields" },
         { status: 400 }
       );
     }
-    
+
     // Process audit asynchronously - don't wait for completion
-    auditServer.track(request, data).catch(err => {
-      console.warn('Async audit error:', err.message);
+    auditServer.track(request, data).catch((err) => {
+      console.warn("Async audit error:", err.message);
     });
-    
+
     // Return immediately
     return Response.json({ success: true });
   } catch (error) {
@@ -327,7 +328,7 @@ let batchTimeout = null;
 
 export function queueAuditEvent(auditData) {
   auditQueue.push(auditData);
-  
+
   if (auditQueue.length >= 10) {
     processBatch();
   } else if (!batchTimeout) {
@@ -340,16 +341,16 @@ async function processBatch() {
     clearTimeout(batchTimeout);
     batchTimeout = null;
   }
-  
+
   if (auditQueue.length === 0) return;
-  
+
   const batch = auditQueue.splice(0);
-  
+
   try {
     // Send batch to database
     await saveAuditBatch(batch);
   } catch (error) {
-    console.error('Batch processing error:', error);
+    console.error("Batch processing error:", error);
   }
 }
 ```
@@ -364,7 +365,7 @@ export async function GET() {
   try {
     // Get audit statistics
     const stats = await getAuditStats();
-    
+
     return Response.json({
       success: true,
       stats: {
@@ -372,8 +373,8 @@ export async function GET() {
         eventsToday: stats.today,
         topRoutes: stats.topRoutes,
         averageResponseTime: stats.avgResponseTime,
-        errorRate: stats.errorRate
-      }
+        errorRate: stats.errorRate,
+      },
     });
   } catch (error) {
     return Response.json(
@@ -389,24 +390,24 @@ export async function GET() {
 ```javascript
 // lib/auditLogger.js
 export function createAuditLogger() {
-  const logLevel = process.env.AUDIT_LOG_LEVEL || 'info';
-  
+  const logLevel = process.env.AUDIT_LOG_LEVEL || "info";
+
   return {
     info: (message, data) => {
-      if (['info', 'warn', 'error'].includes(logLevel)) {
+      if (["info", "warn", "error"].includes(logLevel)) {
         console.log(`[AUDIT INFO] ${message}`, data);
       }
     },
     warn: (message, data) => {
-      if (['warn', 'error'].includes(logLevel)) {
+      if (["warn", "error"].includes(logLevel)) {
         console.warn(`[AUDIT WARN] ${message}`, data);
       }
     },
     error: (message, data) => {
-      if (['error'].includes(logLevel)) {
+      if (["error"].includes(logLevel)) {
         console.error(`[AUDIT ERROR] ${message}`, data);
       }
-    }
+    },
   };
 }
 ```
@@ -416,24 +417,26 @@ export function createAuditLogger() {
 ### **Common Issues**
 
 #### **1. "dbUrl is required" Error**
+
 ```javascript
 // Check environment variables
-console.log('Environment check:', {
+console.log("Environment check:", {
   AUDIT_DB_URL: process.env.AUDIT_DB_URL,
-  NODE_ENV: process.env.NODE_ENV
+  NODE_ENV: process.env.NODE_ENV,
 });
 ```
 
 #### **2. Database Connection Issues**
+
 ```javascript
 // Test database connection
 export async function GET() {
   try {
     await testDatabaseConnection();
-    return Response.json({ status: 'connected' });
+    return Response.json({ status: "connected" });
   } catch (error) {
     return Response.json(
-      { status: 'error', message: error.message },
+      { status: "error", message: error.message },
       { status: 500 }
     );
   }
@@ -441,6 +444,7 @@ export async function GET() {
 ```
 
 #### **3. Performance Issues**
+
 ```javascript
 // Monitor audit processing time
 const startTime = Date.now();
@@ -459,16 +463,16 @@ if (processingTime > 1000) {
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
   onError: (err) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Audit Debug:', {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Audit Debug:", {
         error: err.message,
         stack: err.stack,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } else {
-      console.warn('Audit error:', err.message);
+      console.warn("Audit error:", err.message);
     }
-  }
+  },
 });
 ```
 

@@ -16,11 +16,13 @@ This guide shows how to implement the **server-side** Triostack Audit SDK in you
 ## 🚀 Quick Setup
 
 ### 1. Install the SDK
+
 ```bash
 npm install triostack-audit-sdk
 ```
 
 ### 2. Create Environment Variables
+
 ```env
 # .env.local
 AUDIT_DB_URL=https://your-database-api.com/audit-logs
@@ -29,35 +31,36 @@ AUDIT_ENABLE_GEO=true
 ```
 
 ### 3. Basic API Route Setup
+
 ```javascript
 // app/api/audit-logs/route.js or pages/api/audit-logs.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
-  userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
-  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
-  onError: (err) => console.warn('Audit error:', err)
+  userIdHeader: process.env.AUDIT_USER_ID_HEADER || "x-user-id",
+  enableGeo: process.env.AUDIT_ENABLE_GEO === "true",
+  onError: (err) => console.warn("Audit error:", err),
 });
 
 export async function POST(request) {
   try {
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.userId || !data.route) {
       return Response.json(
-        { success: false, message: 'Missing required fields' },
+        { success: false, message: "Missing required fields" },
         { status: 400 }
       );
     }
-    
+
     // Save audit data
     await auditServer.track(request, data);
-    
+
     return Response.json({ success: true });
   } catch (error) {
-    console.error('Audit API error:', error);
+    console.error("Audit API error:", error);
     return Response.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -72,51 +75,55 @@ export async function POST(request) {
 
 ```javascript
 // app/api/audit-logs/route.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
-  userIdHeader: 'x-user-id',
+  userIdHeader: "x-user-id",
   enableGeo: true,
-  onError: (err) => console.warn('Audit error:', err)
+  onError: (err) => console.warn("Audit error:", err),
 });
 
 export async function GET(request) {
   // Apply audit middleware to track this request
   return new Promise((resolve) => {
-    auditServer.expressMiddleware()(request, {
-      statusCode: 200,
-      getHeader: (name) => request.headers.get(name),
-      on: (event, callback) => {
-        if (event === 'finish') {
-          // Simulate response finish
-          setTimeout(() => {
-            callback();
-            resolve(Response.json({ message: 'Audit tracked' }));
-          }, 100);
-        }
+    auditServer.expressMiddleware()(
+      request,
+      {
+        statusCode: 200,
+        getHeader: (name) => request.headers.get(name),
+        on: (event, callback) => {
+          if (event === "finish") {
+            // Simulate response finish
+            setTimeout(() => {
+              callback();
+              resolve(Response.json({ message: "Audit tracked" }));
+            }, 100);
+          }
+        },
+      },
+      () => {
+        // Request processing complete
+        resolve(Response.json({ message: "Audit tracked" }));
       }
-    }, () => {
-      // Request processing complete
-      resolve(Response.json({ message: 'Audit tracked' }));
-    });
+    );
   });
 }
 
 export async function POST(request) {
   const data = await request.json();
-  
+
   // Manual tracking
   await auditServer.track(request, {
-    userId: data.userId || 'anonymous',
-    route: '/api/audit-logs',
-    method: 'POST',
+    userId: data.userId || "anonymous",
+    route: "/api/audit-logs",
+    method: "POST",
     statusCode: 200,
     duration: 50,
-    event: 'custom_audit_event',
-    metadata: data.metadata || {}
+    event: "custom_audit_event",
+    metadata: data.metadata || {},
   });
-  
+
   return Response.json({ success: true });
 }
 ```
@@ -125,47 +132,44 @@ export async function POST(request) {
 
 ```javascript
 // app/api/users/route.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
-  dbUrl: process.env.AUDIT_DB_URL
+  dbUrl: process.env.AUDIT_DB_URL,
 });
 
 export async function GET(request) {
   const startTime = Date.now();
-  
+
   try {
     // Your API logic
     const users = await fetchUsers();
-    
+
     // Track successful request
     await auditServer.track(request, {
-      userId: request.headers.get('x-user-id') || 'anonymous',
-      route: '/api/users',
-      method: 'GET',
+      userId: request.headers.get("x-user-id") || "anonymous",
+      route: "/api/users",
+      method: "GET",
       statusCode: 200,
       duration: Math.round((Date.now() - startTime) / 1000),
-      event: 'users_fetched',
-      metadata: { count: users.length }
+      event: "users_fetched",
+      metadata: { count: users.length },
     });
-    
+
     return Response.json({ users });
   } catch (error) {
     // Track failed request
     await auditServer.track(request, {
-      userId: request.headers.get('x-user-id') || 'anonymous',
-      route: '/api/users',
-      method: 'GET',
+      userId: request.headers.get("x-user-id") || "anonymous",
+      route: "/api/users",
+      method: "GET",
       statusCode: 500,
       duration: Math.round((Date.now() - startTime) / 1000),
-      event: 'users_fetch_failed',
-      metadata: { error: error.message }
+      event: "users_fetch_failed",
+      metadata: { error: error.message },
     });
-    
-    return Response.json(
-      { error: 'Failed to fetch users' },
-      { status: 500 }
-    );
+
+    return Response.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 }
 ```
@@ -176,32 +180,29 @@ export async function GET(request) {
 
 ```javascript
 // middleware.js
-import { NextResponse } from 'next/server';
-import { createAuditServer } from 'triostack-audit-sdk';
+import { NextResponse } from "next/server";
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
-  userIdHeader: 'x-user-id',
-  enableGeo: true
+  userIdHeader: "x-user-id",
+  enableGeo: true,
 });
 
 export function middleware(request) {
   const startTime = Date.now();
-  
+
   // Process the request
   const response = NextResponse.next();
-  
+
   // Track the request after response is sent
-  response.headers.set('x-audit-start-time', startTime.toString());
-  
+  response.headers.set("x-audit-start-time", startTime.toString());
+
   return response;
 }
 
 export const config = {
-  matcher: [
-    '/api/:path*',
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ["/api/:path*", "/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 ```
 
@@ -209,39 +210,41 @@ export const config = {
 
 ```javascript
 // lib/auditMiddleware.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 export function createAuditMiddleware() {
   const auditServer = createAuditServer({
     dbUrl: process.env.AUDIT_DB_URL,
-    userIdHeader: 'x-user-id',
-    enableGeo: true
+    userIdHeader: "x-user-id",
+    enableGeo: true,
   });
 
   return async function auditMiddleware(request, response, next) {
     const startTime = Date.now();
-    
+
     // Add audit tracking to response
     const originalEnd = response.end;
-    response.end = function(...args) {
+    response.end = function (...args) {
       const duration = Math.round((Date.now() - startTime) / 1000);
-      
+
       // Track the request
-      auditServer.track(request, {
-        userId: request.headers['x-user-id'] || 'anonymous',
-        route: request.url,
-        method: request.method,
-        statusCode: response.statusCode,
-        duration,
-        event: 'api_request'
-      }).catch(err => {
-        console.warn('Audit tracking failed:', err.message);
-      });
-      
+      auditServer
+        .track(request, {
+          userId: request.headers["x-user-id"] || "anonymous",
+          route: request.url,
+          method: request.method,
+          statusCode: response.statusCode,
+          duration,
+          event: "api_request",
+        })
+        .catch((err) => {
+          console.warn("Audit tracking failed:", err.message);
+        });
+
       // Call original end method
       return originalEnd.apply(this, args);
     };
-    
+
     next();
   };
 }
@@ -254,22 +257,22 @@ export function createAuditMiddleware() {
 ```javascript
 // lib/auditConfig.js
 export function getAuditConfig() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
+  const isProduction = process.env.NODE_ENV === "production";
+
   return {
     dbUrl: process.env.AUDIT_DB_URL,
-    userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
-    enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+    userIdHeader: process.env.AUDIT_USER_ID_HEADER || "x-user-id",
+    enableGeo: process.env.AUDIT_ENABLE_GEO === "true",
     onError: (err) => {
       if (isProduction) {
         // Production: Log to external service
-        console.warn('Audit error:', err.message);
+        console.warn("Audit error:", err.message);
         // sendToErrorReporting(err);
       } else {
         // Development: Detailed logging
-        console.error('Audit error:', err);
+        console.error("Audit error:", err);
       }
-    }
+    },
   };
 }
 ```
@@ -278,18 +281,18 @@ export function getAuditConfig() {
 
 ```javascript
 // lib/auditDatabase.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 // Custom database handler
 async function saveToDatabase(auditData) {
   // Example: Save to MongoDB
-  const { MongoClient } = require('mongodb');
+  const { MongoClient } = require("mongodb");
   const client = new MongoClient(process.env.MONGODB_URI);
-  
+
   try {
     await client.connect();
-    const db = client.db('audit');
-    await db.collection('audit_logs').insertOne(auditData);
+    const db = client.db("audit");
+    await db.collection("audit_logs").insertOne(auditData);
   } finally {
     await client.close();
   }
@@ -298,10 +301,10 @@ async function saveToDatabase(auditData) {
 // Custom audit server with database integration
 export function createCustomAuditServer() {
   const auditServer = createAuditServer({
-    dbUrl: 'http://localhost:3000/api/audit-logs', // Internal endpoint
-    userIdHeader: 'x-user-id',
+    dbUrl: "http://localhost:3000/api/audit-logs", // Internal endpoint
+    userIdHeader: "x-user-id",
     enableGeo: true,
-    onError: (err) => console.warn('Audit error:', err)
+    onError: (err) => console.warn("Audit error:", err),
   });
 
   return auditServer;
@@ -324,40 +327,40 @@ NODE_ENV=production
 
 ```javascript
 // app/api/audit-logs/route.js
-import { createAuditServer } from 'triostack-audit-sdk';
+import { createAuditServer } from "triostack-audit-sdk";
 
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
   userIdHeader: process.env.AUDIT_USER_ID_HEADER,
-  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+  enableGeo: process.env.AUDIT_ENABLE_GEO === "true",
   onError: (err) => {
     // Production error handling
-    console.warn('Audit error:', err.message);
+    console.warn("Audit error:", err.message);
     // Don't break the application
-  }
+  },
 });
 
 export async function POST(request) {
   try {
     const data = await request.json();
-    
+
     // Validate input
     if (!data.userId || !data.route) {
       return Response.json(
-        { success: false, message: 'Missing required fields' },
+        { success: false, message: "Missing required fields" },
         { status: 400 }
       );
     }
-    
+
     // Track audit event
     await auditServer.track(request, data);
-    
+
     return Response.json({ success: true });
   } catch (error) {
     // Graceful error handling
-    console.warn('Audit API error:', error.message);
+    console.warn("Audit API error:", error.message);
     return Response.json(
-      { success: false, message: 'Audit tracking failed' },
+      { success: false, message: "Audit tracking failed" },
       { status: 500 }
     );
   }
@@ -370,9 +373,9 @@ export async function POST(request) {
 // app/api/audit/health/route.js
 export async function GET() {
   return Response.json({
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
-    version: '2.0.0'
+    version: "2.0.0",
   });
 }
 ```
@@ -382,29 +385,32 @@ export async function GET() {
 ### **Common Issues**
 
 #### **1. "dbUrl is required" Error**
+
 ```javascript
 // Make sure AUDIT_DB_URL is set in your environment
-console.log('AUDIT_DB_URL:', process.env.AUDIT_DB_URL);
+console.log("AUDIT_DB_URL:", process.env.AUDIT_DB_URL);
 ```
 
 #### **2. Network Timeout Errors**
+
 ```javascript
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
   onError: (err) => {
-    if (err.message.includes('timeout')) {
-      console.warn('Audit timeout - continuing without tracking');
+    if (err.message.includes("timeout")) {
+      console.warn("Audit timeout - continuing without tracking");
     } else {
-      console.error('Audit error:', err);
+      console.error("Audit error:", err);
     }
-  }
+  },
 });
 ```
 
 #### **3. Missing User ID**
+
 ```javascript
 // Set default user ID for anonymous requests
-const userId = request.headers.get('x-user-id') || 'anonymous';
+const userId = request.headers.get("x-user-id") || "anonymous";
 ```
 
 ### **Debug Mode**
@@ -414,12 +420,12 @@ const userId = request.headers.get('x-user-id') || 'anonymous';
 const auditServer = createAuditServer({
   dbUrl: process.env.AUDIT_DB_URL,
   onError: (err) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Audit Debug:', err);
+    if (process.env.NODE_ENV === "development") {
+      console.error("Audit Debug:", err);
     } else {
-      console.warn('Audit error:', err.message);
+      console.warn("Audit error:", err.message);
     }
-  }
+  },
 });
 ```
 

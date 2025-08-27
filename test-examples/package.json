@@ -8,7 +8,9 @@
     "audit": "node mock-audit-server.js",
     "test": "echo \"Open test-examples/client-test.html in your browser\"",
     "dev": "concurrently \"npm run audit\" \"npm run start\"",
-    "curl": "node curl-test.js"
+    "curl": "node curl-test.js",
+    "demo": "node demo.js",
+    "quick": "node quick-test.js"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Triostack Audit SDK - Client Test</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .test-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fafafa;
+      }
+      .test-section h3 {
+        margin-top: 0;
+        color: #555;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 5px;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .response {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        border-left: 4px solid #007bff;
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .error {
+        border-left-color: #dc3545;
+        background: #f8d7da;
+      }
+      .success {
+        border-left-color: #28a745;
+        background: #d4edda;
+      }
+      .status {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 12px;
+        font-weight: bold;
+        margin-left: 10px;
+      }
+      .status.online {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status.offline {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+      .stat-card {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        text-align: center;
+      }
+      .stat-number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #007bff;
+      }
+      .stat-label {
+        color: #666;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔍 Triostack Audit SDK - Test Client</h1>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-number" id="totalEvents">0</div>
+          <div class="stat-label">Total Audit Events</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="serverStatus">-</div>
+          <div class="stat-label">Server Status</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="auditServerStatus">-</div>
+          <div class="stat-label">Audit Server Status</div>
+        </div>
+      </div>
+
+      <div class="test-section">
+        <h3>🚀 Test Server Endpoints</h3>
+        <p>Test the main server endpoints that will trigger audit events:</p>
+        <button onclick="testEndpoint('/')">Test Home Page</button>
+        <button onclick="testEndpoint('/api/users')">Test Users API</button>
+        <button onclick="testEndpoint('/api/login', 'POST')">Test Login</button>
+        <button onclick="testEndpoint('/api/slow')">Test Slow Endpoint</button>
+        <button onclick="testEndpoint('/api/manual-track')">
+          Test Manual Track
+        </button>
+        <button onclick="testEndpoint('/api/error')">
+          Test Error Endpoint
+        </button>
+        <div id="serverResponse" class="response"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>📊 Audit Server Management</h3>
+        <p>Manage and view audit events:</p>
+        <button onclick="getAuditEvents()">View All Events</button>
+        <button onclick="clearAuditEvents()">Clear All Events</button>
+        <button onclick="checkAuditHealth()">Check Health</button>
+        <div id="auditResponse" class="response"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🔄 Bulk Testing</h3>
+        <p>Run multiple requests to generate audit events:</p>
+        <button onclick="runBulkTest(5)">Run 5 Requests</button>
+        <button onclick="runBulkTest(10)">Run 10 Requests</button>
+        <button onclick="runBulkTest(20)">Run 20 Requests</button>
+        <div id="bulkResponse" class="response"></div>
+      </div>
+    </div>
+
+    <script>
+      const SERVER_URL = "http://localhost:3001";
+      const AUDIT_URL = "http://localhost:3002";
+
+      // Check server status on load
+      window.onload = function () {
+        checkServerStatus();
+        checkAuditHealth();
+        updateStats();
+      };
+
+      async function checkServerStatus() {
+        try {
+          const response = await fetch(`${SERVER_URL}/`);
+          const status = response.ok ? "🟢 Online" : "🔴 Error";
+          document.getElementById("serverStatus").textContent = status;
+        } catch (error) {
+          document.getElementById("serverStatus").textContent = "🔴 Offline";
+        }
+      }
+
+      async function checkAuditHealth() {
+        try {
+          const response = await fetch(`${AUDIT_URL}/health`);
+          const data = await response.json();
+          const status = data.status === "healthy" ? "🟢 Healthy" : "🔴 Error";
+          document.getElementById("auditServerStatus").textContent = status;
+          document.getElementById("totalEvents").textContent =
+            data.eventsReceived || 0;
+        } catch (error) {
+          document.getElementById("auditServerStatus").textContent =
+            "🔴 Offline";
+        }
+      }
+
+      async function updateStats() {
+        await checkServerStatus();
+        await checkAuditHealth();
+      }
+
+      async function testEndpoint(path, method = "GET") {
+        const responseDiv = document.getElementById("serverResponse");
+        responseDiv.textContent = "Loading...";
+        responseDiv.className = "response";
+
+        try {
+          const options = {
+            method: method,
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": "test-user-" + Date.now(),
+            },
+          };
+
+          if (method === "POST") {
+            options.body = JSON.stringify({ test: true });
+          }
+
+          const response = await fetch(`${SERVER_URL}${path}`, options);
+          const data = await response.json();
+
+          responseDiv.textContent = `Status: ${
+            response.status
+          }\nResponse: ${JSON.stringify(data, null, 2)}`;
+          responseDiv.className = response.ok
+            ? "response success"
+            : "response error";
+
+          // Update stats after request
+          setTimeout(updateStats, 1000);
+        } catch (error) {
+          responseDiv.textContent = `Error: ${error.message}`;
+          responseDiv.className = "response error";
+        }
+      }
+
+      async function getAuditEvents() {
+        const responseDiv = document.getElementById("auditResponse");
+        responseDiv.textContent = "Loading...";
+
+        try {
+          const response = await fetch(`${AUDIT_URL}/audit`);
+          const data = await response.json();
+
+          responseDiv.textContent = `Total Events: ${
+            data.totalEvents
+          }\n\n${JSON.stringify(data.events, null, 2)}`;
+          responseDiv.className = "response success";
+
+          document.getElementById("totalEvents").textContent = data.totalEvents;
+        } catch (error) {
+          responseDiv.textContent = `Error: ${error.message}`;
+          responseDiv.className = "response error";
+        }
+      }
+
+      async function clearAuditEvents() {
+        const responseDiv = document.getElementById("auditResponse");
+        responseDiv.textContent = "Clearing...";
+
+        try {
+          const response = await fetch(`${AUDIT_URL}/audit`, {
+            method: "DELETE",
+          });
+          const data = await response.json();
+
+          responseDiv.textContent = `Result: ${JSON.stringify(data, null, 2)}`;
+          responseDiv.className = "response success";
+
+          document.getElementById("totalEvents").textContent = "0";
+        } catch (error) {
+          responseDiv.textContent = `Error: ${error.message}`;
+          responseDiv.className = "response error";
+        }
+      }
+
+      async function runBulkTest(count) {
+        const responseDiv = document.getElementById("bulkResponse");
+        responseDiv.textContent = `Running ${count} requests...`;
+        responseDiv.className = "response";
+
+        const endpoints = [
+          "/",
+          "/api/users",
+          "/api/login",
+          "/api/manual-track",
+        ];
+        const results = { success: 0, error: 0 };
+
+        for (let i = 0; i < count; i++) {
+          const endpoint = endpoints[i % endpoints.length];
+          const method = endpoint === "/api/login" ? "POST" : "GET";
+
+          try {
+            const options = {
+              method: method,
+              headers: {
+                "Content-Type": "application/json",
+                "x-user-id": `bulk-user-${i}`,
+              },
+            };
+
+            if (method === "POST") {
+              options.body = JSON.stringify({ test: true });
+            }
+
+            const response = await fetch(`${SERVER_URL}${endpoint}`, options);
+            if (response.ok) {
+              results.success++;
+            } else {
+              results.error++;
+            }
+          } catch (error) {
+            results.error++;
+          }
+
+          // Small delay between requests
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        responseDiv.textContent = `Bulk test completed!\nSuccess: ${results.success}\nErrors: ${results.error}`;
+        responseDiv.className = "response success";
+
+        // Update stats after bulk test
+        setTimeout(updateStats, 1000);
+      }
+    </script>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "triostack-audit-sdk",
-  "version": "2.0.0",
-  "description": "A server-side audit logging middleware for Node.js applications with Express, Fastify, and Koa support",
+  "version": "2.1.0",
+  "description": "A server-side audit logging middleware for Node.js applications with Express, Fastify, and Koa support. Includes comprehensive test examples and documentation.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -10,7 +10,12 @@
   "files": [
     "index.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "test-examples/*.js",
+    "test-examples/*.html",
+    "test-examples/*.md",
+    "test-examples/*.sh",
+    "test-examples/package.json"
   ],
   "keywords": [
     "audit",
@@ -41,7 +46,8 @@
   "homepage": "https://github.com/Triostacksoftware/Triostack_Audit_SDK#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "node -c index.js"
+    "prepublishOnly": "node -c index.js",
+    "test:examples": "cd test-examples && npm install && npm run demo"
   },
   "dependencies": {
     "geoip-lite": "^1.4.9",
