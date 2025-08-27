@@ -1,0 +1,23 @@
+{
+  "name": "triostack-audit-sdk-test",
+  "version": "1.0.0",
+  "description": "Test examples for Triostack Audit SDK",
+  "type": "module",
+  "scripts": {
+    "start": "node server-test.js",
+    "audit": "node mock-audit-server.js",
+    "test": "echo \"Open test-examples/client-test.html in your browser\"",
+    "dev": "concurrently \"npm run audit\" \"npm run start\"",
+    "curl": "node curl-test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "triostack-audit-sdk": "file:../"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

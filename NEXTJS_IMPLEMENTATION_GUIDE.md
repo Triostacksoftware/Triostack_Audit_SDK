@@ -1,532 +1,461 @@
-# Next.js Implementation Guide for Triostack Audit SDK
+# Next.js Implementation Guide - Triostack Audit SDK
+
+## 🚀 Server-Side Audit Middleware for Next.js
+
+This guide shows how to implement the **server-side** Triostack Audit SDK in your Next.js application using API routes and middleware.
 
 ## 📋 Table of Contents
 
-1. [Installation](#installation)
-2. [Environment Setup](#environment-setup)
-3. [Implementation Options](#implementation-options)
-4. [Complete Implementation Examples](#complete-implementation-examples)
-5. [Best Practices](#best-practices)
+1. [Quick Setup](#quick-setup)
+2. [API Route Implementation](#api-route-implementation)
+3. [Middleware Integration](#middleware-integration)
+4. [Advanced Configuration](#advanced-configuration)
+5. [Production Deployment](#production-deployment)
 6. [Troubleshooting](#troubleshooting)
 
-## 🚀 Installation
+## 🚀 Quick Setup
 
+### 1. Install the SDK
 ```bash
 npm install triostack-audit-sdk
 ```
 
-## ⚙️ Environment Setup
-
-Create `.env.local` in your Next.js project:
-
+### 2. Create Environment Variables
 ```env
-# Audit API Configuration
-NEXT_PUBLIC_AUDIT_API_URL=https://your-audit-api.com
-NEXT_PUBLIC_AUDIT_CLIENT_DB_URL=https://your-client-db.com/audit
-
-# Optional: Disable audit in development
-NEXT_PUBLIC_ENABLE_AUDIT=true
+# .env.local
+AUDIT_DB_URL=https://your-database-api.com/audit-logs
+AUDIT_USER_ID_HEADER=x-user-id
+AUDIT_ENABLE_GEO=true
 ```
 
-## 🎯 Implementation Options
+### 3. Basic API Route Setup
+```javascript
+// app/api/audit-logs/route.js or pages/api/audit-logs.js
+import { createAuditServer } from 'triostack-audit-sdk';
 
-### Option 1: Custom Hook (Recommended)
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
+  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+  onError: (err) => console.warn('Audit error:', err)
+});
 
-### Option 2: Context Provider (Complex Apps)
-
-### Option 3: Layout Integration (Simple Apps)
-
-### Option 4: Middleware Integration (Advanced)
-
-## 📁 Complete Implementation Examples
-
-### 1. Custom Hook Implementation
-
-**File: `hooks/useAudit.ts`**
-
-```typescript
-"use client";
-
-import { useEffect, useRef } from "react";
-import { createAuditClient, AuditClient } from "triostack-audit-sdk";
-
-interface UseAuditOptions {
-  baseUrl: string;
-  userId?: string;
-  includeGeo?: boolean;
-  clientDbUrl?: string;
-  onError?: (error: Error) => void;
-}
-
-export function useAudit(options: UseAuditOptions) {
-  const auditClientRef = useRef<AuditClient | null>(null);
-
-  useEffect(() => {
-    // Only initialize on client side
-    if (typeof window !== "undefined") {
-      auditClientRef.current = createAuditClient({
-        baseUrl: options.baseUrl,
-        userId: options.userId || "anonymous",
-        includeGeo: options.includeGeo ?? true,
-        clientDbUrl: options.clientDbUrl,
-        onError:
-          options.onError ||
-          ((error) => {
-            console.error("Audit tracking error:", error);
-          }),
-      });
+export async function POST(request) {
+  try {
+    const data = await request.json();
+    
+    // Validate required fields
+    if (!data.userId || !data.route) {
+      return Response.json(
+        { success: false, message: 'Missing required fields' },
+        { status: 400 }
+      );
     }
-
-    // Cleanup function
-    return () => {
-      if (auditClientRef.current) {
-        auditClientRef.current.cleanup();
-        auditClientRef.current = null;
-      }
-    };
-  }, [
-    options.baseUrl,
-    options.userId,
-    options.includeGeo,
-    options.clientDbUrl,
-  ]);
-
-  // Return manual track function for custom tracking
-  const track = async (route: string, duration: number) => {
-    if (auditClientRef.current) {
-      return await auditClientRef.current.track({ route, duration });
-    }
-  };
-
-  return { track };
-}
-```
-
-### 2. Context Provider Implementation
-
-**File: `contexts/AuditContext.tsx`**
-
-```typescript
-"use client";
-
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  ReactNode,
-} from "react";
-import { createAuditClient, AuditClient } from "triostack-audit-sdk";
-
-interface AuditContextType {
-  track: (route: string, duration: number) => Promise<any>;
-}
-
-const AuditContext = createContext<AuditContextType | null>(null);
-
-interface AuditProviderProps {
-  children: ReactNode;
-  baseUrl: string;
-  userId?: string;
-  includeGeo?: boolean;
-  clientDbUrl?: string;
-  onError?: (error: Error) => void;
-}
-
-export function AuditProvider({
-  children,
-  baseUrl,
-  userId,
-  includeGeo,
-  clientDbUrl,
-  onError,
-}: AuditProviderProps) {
-  const auditClientRef = useRef<AuditClient | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      auditClientRef.current = createAuditClient({
-        baseUrl,
-        userId: userId || "anonymous",
-        includeGeo: includeGeo ?? true,
-        clientDbUrl,
-        onError:
-          onError ||
-          ((error) => {
-            console.error("Audit tracking error:", error);
-          }),
-      });
-    }
-
-    return () => {
-      if (auditClientRef.current) {
-        auditClientRef.current.cleanup();
-        auditClientRef.current = null;
-      }
-    };
-  }, [baseUrl, userId, includeGeo, clientDbUrl]);
-
-  const track = async (route: string, duration: number) => {
-    if (auditClientRef.current) {
-      return await auditClientRef.current.track({ route, duration });
-    }
-  };
-
-  return (
-    <AuditContext.Provider value={{ track }}>{children}</AuditContext.Provider>
-  );
-}
-
-export function useAuditContext() {
-  const context = useContext(AuditContext);
-  if (!context) {
-    throw new Error("useAuditContext must be used within an AuditProvider");
+    
+    // Save audit data
+    await auditServer.track(request, data);
+    
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error('Audit API error:', error);
+    return Response.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
-  return context;
 }
 ```
 
-### 3. Layout Integration
+## 🔧 API Route Implementation
 
-**File: `app/layout.tsx` (App Router)**
+### **Option 1: Express-Style Middleware (Recommended)**
 
-```typescript
-"use client";
+```javascript
+// app/api/audit-logs/route.js
+import { createAuditServer } from 'triostack-audit-sdk';
 
-import { useEffect } from "react";
-import { createAuditClient } from "triostack-audit-sdk";
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  userIdHeader: 'x-user-id',
+  enableGeo: true,
+  onError: (err) => console.warn('Audit error:', err)
+});
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    const auditClient = createAuditClient({
-      baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-      userId: "user123", // Replace with actual user ID
-      includeGeo: true,
-      onError: (error) => {
-        console.error("Audit tracking error:", error);
-      },
+export async function GET(request) {
+  // Apply audit middleware to track this request
+  return new Promise((resolve) => {
+    auditServer.expressMiddleware()(request, {
+      statusCode: 200,
+      getHeader: (name) => request.headers.get(name),
+      on: (event, callback) => {
+        if (event === 'finish') {
+          // Simulate response finish
+          setTimeout(() => {
+            callback();
+            resolve(Response.json({ message: 'Audit tracked' }));
+          }, 100);
+        }
+      }
+    }, () => {
+      // Request processing complete
+      resolve(Response.json({ message: 'Audit tracked' }));
     });
+  });
+}
 
-    return () => {
-      auditClient.cleanup();
-    };
-  }, []);
-
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+export async function POST(request) {
+  const data = await request.json();
+  
+  // Manual tracking
+  await auditServer.track(request, {
+    userId: data.userId || 'anonymous',
+    route: '/api/audit-logs',
+    method: 'POST',
+    statusCode: 200,
+    duration: 50,
+    event: 'custom_audit_event',
+    metadata: data.metadata || {}
+  });
+  
+  return Response.json({ success: true });
 }
 ```
 
-**File: `pages/_app.tsx` (Pages Router)**
+### **Option 2: Manual Tracking**
 
-```typescript
-import { useEffect } from "react";
-import { createAuditClient } from "triostack-audit-sdk";
-import type { AppProps } from "next/app";
+```javascript
+// app/api/users/route.js
+import { createAuditServer } from 'triostack-audit-sdk';
 
-export default function App({ Component, pageProps }: AppProps) {
-  useEffect(() => {
-    const auditClient = createAuditClient({
-      baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-      userId: "user123", // Replace with actual user ID
-      includeGeo: true,
-      onError: (error) => {
-        console.error("Audit tracking error:", error);
-      },
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL
+});
+
+export async function GET(request) {
+  const startTime = Date.now();
+  
+  try {
+    // Your API logic
+    const users = await fetchUsers();
+    
+    // Track successful request
+    await auditServer.track(request, {
+      userId: request.headers.get('x-user-id') || 'anonymous',
+      route: '/api/users',
+      method: 'GET',
+      statusCode: 200,
+      duration: Math.round((Date.now() - startTime) / 1000),
+      event: 'users_fetched',
+      metadata: { count: users.length }
     });
-
-    return () => {
-      auditClient.cleanup();
-    };
-  }, []);
-
-  return <Component {...pageProps} />;
+    
+    return Response.json({ users });
+  } catch (error) {
+    // Track failed request
+    await auditServer.track(request, {
+      userId: request.headers.get('x-user-id') || 'anonymous',
+      route: '/api/users',
+      method: 'GET',
+      statusCode: 500,
+      duration: Math.round((Date.now() - startTime) / 1000),
+      event: 'users_fetch_failed',
+      metadata: { error: error.message }
+    });
+    
+    return Response.json(
+      { error: 'Failed to fetch users' },
+      { status: 500 }
+    );
+  }
 }
 ```
 
-### 4. Middleware Integration (Advanced)
+## 🔄 Middleware Integration
 
-**File: `middleware.ts`**
+### **Next.js Middleware (App Router)**
 
-```typescript
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+```javascript
+// middleware.js
+import { NextResponse } from 'next/server';
+import { createAuditServer } from 'triostack-audit-sdk';
 
-export function middleware(request: NextRequest) {
-  // Add audit headers for server-side tracking
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  userIdHeader: 'x-user-id',
+  enableGeo: true
+});
+
+export function middleware(request) {
+  const startTime = Date.now();
+  
+  // Process the request
   const response = NextResponse.next();
-
-  response.headers.set("x-audit-route", request.nextUrl.pathname);
-  response.headers.set("x-audit-timestamp", new Date().toISOString());
-
+  
+  // Track the request after response is sent
+  response.headers.set('x-audit-start-time', startTime.toString());
+  
   return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    '/api/:path*',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };
 ```
 
-## 🎯 Usage Examples
+### **Custom Middleware Hook**
 
-### Using Custom Hook
+```javascript
+// lib/auditMiddleware.js
+import { createAuditServer } from 'triostack-audit-sdk';
 
-```typescript
-// In any component
-import { useAudit } from "@/hooks/useAudit";
-
-export default function Dashboard() {
-  const { track } = useAudit({
-    baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-    userId: "user123",
+export function createAuditMiddleware() {
+  const auditServer = createAuditServer({
+    dbUrl: process.env.AUDIT_DB_URL,
+    userIdHeader: 'x-user-id',
+    enableGeo: true
   });
 
-  const handleCustomAction = async () => {
-    // Manual tracking
-    await track("/dashboard/action", 30);
+  return async function auditMiddleware(request, response, next) {
+    const startTime = Date.now();
+    
+    // Add audit tracking to response
+    const originalEnd = response.end;
+    response.end = function(...args) {
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      
+      // Track the request
+      auditServer.track(request, {
+        userId: request.headers['x-user-id'] || 'anonymous',
+        route: request.url,
+        method: request.method,
+        statusCode: response.statusCode,
+        duration,
+        event: 'api_request'
+      }).catch(err => {
+        console.warn('Audit tracking failed:', err.message);
+      });
+      
+      // Call original end method
+      return originalEnd.apply(this, args);
+    };
+    
+    next();
   };
-
-  return (
-    <div>
-      <button onClick={handleCustomAction}>Custom Action</button>
-    </div>
-  );
 }
 ```
 
-### Using Context Provider
+## ⚙️ Advanced Configuration
 
-```typescript
-// In _app.tsx or layout.tsx
-import { AuditProvider } from "@/contexts/AuditContext";
+### **Environment-Specific Setup**
 
-export default function App({ Component, pageProps }: AppProps) {
-  return (
-    <AuditProvider
-      baseUrl={process.env.NEXT_PUBLIC_AUDIT_API_URL!}
-      userId="user123"
-    >
-      <Component {...pageProps} />
-    </AuditProvider>
-  );
-}
-
-// In any component
-import { useAuditContext } from "@/contexts/AuditContext";
-
-export default function Profile() {
-  const { track } = useAuditContext();
-
-  const handleProfileUpdate = async () => {
-    await track("/profile/update", 45);
+```javascript
+// lib/auditConfig.js
+export function getAuditConfig() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  return {
+    dbUrl: process.env.AUDIT_DB_URL,
+    userIdHeader: process.env.AUDIT_USER_ID_HEADER || 'x-user-id',
+    enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+    onError: (err) => {
+      if (isProduction) {
+        // Production: Log to external service
+        console.warn('Audit error:', err.message);
+        // sendToErrorReporting(err);
+      } else {
+        // Development: Detailed logging
+        console.error('Audit error:', err);
+      }
+    }
   };
-
-  return (
-    <div>
-      <button onClick={handleProfileUpdate}>Update Profile</button>
-    </div>
-  );
 }
 ```
 
-## 🔧 Configuration Options
+### **Database Integration**
 
-### Environment Variables
+```javascript
+// lib/auditDatabase.js
+import { createAuditServer } from 'triostack-audit-sdk';
+
+// Custom database handler
+async function saveToDatabase(auditData) {
+  // Example: Save to MongoDB
+  const { MongoClient } = require('mongodb');
+  const client = new MongoClient(process.env.MONGODB_URI);
+  
+  try {
+    await client.connect();
+    const db = client.db('audit');
+    await db.collection('audit_logs').insertOne(auditData);
+  } finally {
+    await client.close();
+  }
+}
+
+// Custom audit server with database integration
+export function createCustomAuditServer() {
+  const auditServer = createAuditServer({
+    dbUrl: 'http://localhost:3000/api/audit-logs', // Internal endpoint
+    userIdHeader: 'x-user-id',
+    enableGeo: true,
+    onError: (err) => console.warn('Audit error:', err)
+  });
+
+  return auditServer;
+}
+```
+
+## 🚀 Production Deployment
+
+### **1. Environment Configuration**
 
 ```env
-# Required
-NEXT_PUBLIC_AUDIT_API_URL=https://your-audit-api.com
-
-# Optional
-NEXT_PUBLIC_AUDIT_CLIENT_DB_URL=https://your-client-db.com/audit
-NEXT_PUBLIC_ENABLE_AUDIT=true
-NEXT_PUBLIC_AUDIT_INCLUDE_GEO=true
+# .env.production
+AUDIT_DB_URL=https://api.yourdomain.com/audit-logs
+AUDIT_USER_ID_HEADER=x-user-id
+AUDIT_ENABLE_GEO=true
+NODE_ENV=production
 ```
 
-### TypeScript Configuration
+### **2. Production API Route**
 
-**File: `types/audit.d.ts`**
+```javascript
+// app/api/audit-logs/route.js
+import { createAuditServer } from 'triostack-audit-sdk';
 
-```typescript
-declare module "triostack-audit-sdk" {
-  export interface AuditClient {
-    track(params: { route: string; duration: number }): Promise<any>;
-    cleanup(): void;
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  userIdHeader: process.env.AUDIT_USER_ID_HEADER,
+  enableGeo: process.env.AUDIT_ENABLE_GEO === 'true',
+  onError: (err) => {
+    // Production error handling
+    console.warn('Audit error:', err.message);
+    // Don't break the application
   }
+});
 
-  export interface AuditClientOptions {
-    baseUrl: string;
-    clientDbUrl?: string;
-    includeGeo?: boolean;
-    userId?: string;
-    onError?: (error: Error) => void;
+export async function POST(request) {
+  try {
+    const data = await request.json();
+    
+    // Validate input
+    if (!data.userId || !data.route) {
+      return Response.json(
+        { success: false, message: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+    
+    // Track audit event
+    await auditServer.track(request, data);
+    
+    return Response.json({ success: true });
+  } catch (error) {
+    // Graceful error handling
+    console.warn('Audit API error:', error.message);
+    return Response.json(
+      { success: false, message: 'Audit tracking failed' },
+      { status: 500 }
+    );
   }
-
-  export function createAuditClient(options: AuditClientOptions): AuditClient;
 }
 ```
 
-## 🚀 Best Practices
+### **3. Health Check Endpoint**
 
-### 1. User Authentication Integration
-
-```typescript
-// With NextAuth.js
-import { useSession } from "next-auth/react";
-
-export function useAuditWithAuth() {
-  const { data: session } = useSession();
-
-  const { track } = useAudit({
-    baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-    userId: session?.user?.id || "anonymous",
+```javascript
+// app/api/audit/health/route.js
+export async function GET() {
+  return Response.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '2.0.0'
   });
-
-  return { track };
 }
 ```
 
-### 2. Error Handling
+## 🔧 Troubleshooting
 
-```typescript
-const { track } = useAudit({
-  baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-  onError: (error) => {
-    // Send to error reporting service
-    console.error("Audit error:", error);
+### **Common Issues**
 
-    // Optionally disable audit on repeated errors
-    if (error.message.includes("Network")) {
-      // Handle network errors
+#### **1. "dbUrl is required" Error**
+```javascript
+// Make sure AUDIT_DB_URL is set in your environment
+console.log('AUDIT_DB_URL:', process.env.AUDIT_DB_URL);
+```
+
+#### **2. Network Timeout Errors**
+```javascript
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  onError: (err) => {
+    if (err.message.includes('timeout')) {
+      console.warn('Audit timeout - continuing without tracking');
+    } else {
+      console.error('Audit error:', err);
     }
-  },
+  }
 });
 ```
 
-### 3. Development vs Production
+#### **3. Missing User ID**
+```javascript
+// Set default user ID for anonymous requests
+const userId = request.headers.get('x-user-id') || 'anonymous';
+```
 
-```typescript
-const isDevelopment = process.env.NODE_ENV === "development";
-const enableAudit = process.env.NEXT_PUBLIC_ENABLE_AUDIT === "true";
+### **Debug Mode**
 
-const { track } = useAudit({
-  baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-  // Disable in development if needed
-  onError: isDevelopment
-    ? console.error
-    : (error) => {
-        // Production error handling
-      },
+```javascript
+// Enable debug logging
+const auditServer = createAuditServer({
+  dbUrl: process.env.AUDIT_DB_URL,
+  onError: (err) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Audit Debug:', err);
+    } else {
+      console.warn('Audit error:', err.message);
+    }
+  }
 });
 ```
 
-## 🔍 Troubleshooting
+## 📊 Data Structure
 
-### Common Issues
+The SDK sends this data to your endpoint:
 
-1. **SSR Errors**
-
-   ```typescript
-   // Always check for window object
-   if (typeof window !== "undefined") {
-     // Initialize audit client
-   }
-   ```
-
-2. **Memory Leaks**
-
-   ```typescript
-   // Always cleanup in useEffect
-   useEffect(() => {
-     const client = createAuditClient(options);
-     return () => client.cleanup();
-   }, []);
-   ```
-
-3. **Route Changes Not Tracked**
-
-   ```typescript
-   // Ensure you're using Next.js router
-   import { useRouter } from "next/router";
-
-   const router = useRouter();
-   // Audit client will automatically track route changes
-   ```
-
-### Debug Mode
-
-```typescript
-const { track } = useAudit({
-  baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-  onError: (error) => {
-    if (process.env.NODE_ENV === "development") {
-      console.log("Audit Debug:", error);
-    }
-  },
-});
-```
-
-## 📊 Analytics Integration
-
-### With Google Analytics
-
-```typescript
-import { useAudit } from "@/hooks/useAudit";
-
-export function useAuditWithGA() {
-  const { track } = useAudit({
-    baseUrl: process.env.NEXT_PUBLIC_AUDIT_API_URL!,
-  });
-
-  const trackWithGA = async (route: string, duration: number) => {
-    // Track in audit system
-    await track(route, duration);
-
-    // Track in Google Analytics
-    if (typeof gtag !== "undefined") {
-      gtag("event", "page_view", {
-        page_title: route,
-        page_location: window.location.href,
-      });
-    }
-  };
-
-  return { track: trackWithGA };
+```javascript
+{
+  sessionId: "550e8400-e29b-41d4-a716-446655440000",
+  timestamp: "2024-08-27T16:09:00.000Z",
+  ip: "192.168.1.1",
+  city: "New York",
+  region: "NY",
+  country: "United States",
+  latitude: 40.7128,
+  longitude: -74.0060,
+  userAgent: "Mozilla/5.0...",
+  userId: "user123",
+  route: "/api/users",
+  method: "GET",
+  statusCode: 200,
+  duration: 45,
+  requestSize: 1024,
+  responseSize: 2048,
+  event: "api_request", // Optional
+  metadata: {} // Optional
 }
 ```
 
-## 🎯 Complete Project Structure
+## 🎯 Best Practices
 
-```
-your-nextjs-app/
-├── app/                    # App Router
-│   ├── layout.tsx         # Root layout with audit
-│   └── page.tsx
-├── hooks/
-│   └── useAudit.ts        # Custom audit hook
-├── contexts/
-│   └── AuditContext.tsx   # Audit context provider
-├── types/
-│   └── audit.d.ts         # TypeScript definitions
-├── middleware.ts          # Audit middleware
-├── .env.local            # Environment variables
-└── package.json
-```
+1. **Always handle errors gracefully** - Don't let audit failures break your app
+2. **Use environment variables** - Keep configuration flexible
+3. **Validate input data** - Ensure required fields are present
+4. **Monitor performance** - Audit tracking should be fast and non-blocking
+5. **Test thoroughly** - Verify audit data in development before production
 
-This implementation plan provides a complete guide for integrating the Triostack Audit SDK into any Next.js application with multiple options for different complexity levels.
+This server-side approach eliminates all client-side issues and provides robust audit logging for your Next.js application! 🚀
