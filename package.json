@@ -31,12 +31,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/triostack/audit-client.git"
+    "url": "https://github.com/triostack_technologies_2025/triostack-audit-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/triostack-audit-sdk/issues"
+    "url": "https://github.com/triostack_technologies_2025/triostack-audit-sdk/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/triostack-audit-sdk#readme",
+  "homepage": "https://github.com/triostack_technologies_2025/triostack-audit-sdk#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "node -c index.js"
