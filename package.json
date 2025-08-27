@@ -1,6 +1,6 @@
 {
   "name": "triostack-audit-sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A browser-based audit tracking client for monitoring user activity and route changes",
   "type": "module",
   "main": "index.js",
@@ -34,9 +34,9 @@
     "url": "https://github.com/Triostacksoftware/Triostack_Audit_SDK.git"
   },
   "bugs": {
-    "url": "https://github.com/Triostacksoftware/Triostack_Audit_SDK"
+    "url": "https://github.com/Triostacksoftware/Triostack_Audit_SDK/issues"
   },
-  "homepage": "https://github.com/Triostacksoftware/Triostack_Audit_SDK",
+  "homepage": "https://github.com/Triostacksoftware/Triostack_Audit_SDK#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "node -c index.js"
