@@ -1,0 +1,47 @@
+{
+  "name": "triostack-audit-sdk",
+  "version": "1.0.1",
+  "description": "A browser-based audit tracking client for monitoring user activity and route changes",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "audit",
+    "tracking",
+    "analytics",
+    "browser",
+    "route-tracking",
+    "user-activity",
+    "session-tracking",
+    "geolocation",
+    "history-api",
+    "spa-tracking"
+  ],
+  "author": "Triostack",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/triostack/audit-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/triostack/audit-client/issues"
+  },
+  "homepage": "https://github.com/triostack/audit-client#readme",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "node -c index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
